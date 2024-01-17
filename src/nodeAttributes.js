@@ -23,7 +23,7 @@ export function linkTargetCenter(link) {
 // return the vertical center of a node
 export function nodeCenter(node) {
     return (node.y0 + node.y1) / 2;
-  }
+}
 
 // For a given link, return the target node's depth
 export function targetDepth(d) {

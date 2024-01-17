@@ -1,6 +1,7 @@
 import { find } from "./find.js";
 //import { constant } from './constant.js';
 import * as d3 from "d3";
+import Colors from 'colors.js';
 import { findCircuits } from "./networks/elementaryCircuits.js";
 import {
   getNodeID,
@@ -19,6 +20,7 @@ import {
   ascendingSourceBreadth,
   sortSourceLinks,
   sortTargetLinks,
+  sortLinks
 } from "./sortGraph.js";
 import { addCircularPathData } from "./circularPath.js";
 import { adjustSankeySize } from "./adjustSankeySize.js";
@@ -29,16 +31,16 @@ import { adjustGraphExtents } from "./adjustGraphExtents.js";
 const _typeof =
   typeof Symbol === "function" && typeof Symbol.iterator === "symbol"
     ? function (obj) {
-        return typeof obj;
-      }
+      return typeof obj;
+    }
     : function (obj) {
-        return obj &&
-          typeof Symbol === "function" &&
-          obj.constructor === Symbol &&
-          obj !== Symbol.prototype
-          ? "symbol"
-          : typeof obj;
-      };
+      return obj &&
+        typeof Symbol === "function" &&
+        obj.constructor === Symbol &&
+        obj !== Symbol.prototype
+        ? "symbol"
+        : typeof obj;
+    };
 
 function createMap(arr, id) {
   let m = new Map();
@@ -146,7 +148,6 @@ function identifyCircles(inputGraph, sortNodes) {
       }
     });
   }
-
   return graph;
 }
 
@@ -430,7 +431,7 @@ function computeNodeBreadths() {
     .sort((a, b) => a[0] - b[0])
     .map((d) => d[1]);
 
-  columns.forEach( (nodes) => {
+  columns.forEach((nodes) => {
     let nodesLength = nodes.length;
 
     let totalColumnValue = nodes.reduce(function (total, d) {
@@ -439,7 +440,7 @@ function computeNodeBreadths() {
 
     let preferredTotalGap = graph.y1 - graph.y0 - totalColumnValue * graph.ky;
 
-     const optimizedSort = (a, b) => {
+    const optimizedSort = (a, b) => {
       if (a.circularLinkType == b.circularLinkType) {
         return (
           numberOfNonSelfLinkingCycles(b, id) -
@@ -457,11 +458,11 @@ function computeNodeBreadths() {
       }
     };
 
-    const customSort = (a, b) =>  b.verticalSort - a.verticalSort;    
+    const customSort = (a, b) => b.verticalSort - a.verticalSort;
 
-    this.config.nodes.verticalSort 
-    ? nodes.sort(customSort)        // use custom values for sorting
-    : nodes.sort(optimizedSort);    // Push any overlapping nodes down.
+    this.config.nodes.verticalSort
+      ? nodes.sort(customSort)        // use custom values for sorting
+      : nodes.sort(optimizedSort);    // Push any overlapping nodes down.
 
     if (setNodePositions) {
       let currentY = graph.y0;
@@ -602,11 +603,11 @@ function resolveCollisionsAndRelax() {
         i;
 
       // Push any overlapping nodes down.
-      const customSort = (a, b) =>  b.verticalSort - a.verticalSort;       
+      const customSort = (a, b) => b.verticalSort - a.verticalSort;
 
-      this.config.nodes.verticalSort 
-      ? nodes.sort(customSort)        // use custom values for sorting
-      : nodes.sort(ascendingBreadth); // Push any overlapping nodes down.
+      this.config.nodes.verticalSort
+        ? nodes.sort(customSort)        // use custom values for sorting
+        : nodes.sort(ascendingBreadth); // Push any overlapping nodes down.
 
       for (i = 0; i < n; ++i) {
         node = nodes[i];
@@ -638,6 +639,7 @@ function resolveCollisionsAndRelax() {
   return graph;
 }
 
+
 // Assign the links y0 and y1 based on source/target nodes position,
 // plus the link's relative position to other links to the same node
 function computeLinkBreadths(inputGraph) {
@@ -651,27 +653,13 @@ function computeLinkBreadths(inputGraph) {
     var y0 = node.y0;
     var y1 = y0;
 
-    // start from the bottom of the node for cycle links
-    var y0cycle = node.y1;
-    var y1cycle = y0cycle;
-
     node.sourceLinks.forEach(function (link) {
-      if (link.circular) {
-        link.y0 = y0cycle - link.width / 2;
-        y0cycle = y0cycle - link.width;
-      } else {
-        link.y0 = y0 + link.width / 2;
-        y0 += link.width;
-      }
+      link.y0 = y0 + link.width / 2;
+      y0 += link.width;
     });
     node.targetLinks.forEach(function (link) {
-      if (link.circular) {
-        link.y1 = y1cycle - link.width / 2;
-        y1cycle = y1cycle - link.width;
-      } else {
-        link.y1 = y1 + link.width / 2;
-        y1 += link.width;
-      }
+      link.y1 = y1 + link.width / 2;
+      y1 += link.width;
     });
   });
 
@@ -905,6 +893,70 @@ function addVirtualPathData(inputGraph, virtualLinkType) {
   return graph;
 }
 
+function updateDash(speed, percentageOffset) {
+  let arrowsG = d3.selectAll(".g-arrow")
+  arrowsG.selectAll("path")
+    .style("stroke-dashoffset", d => {
+      return percentageOffset * (d.speed ? speed(d.speed) : speed(d.value))
+    })
+    .style("stroke-dasharray", "10 10")
+  percentageOffset = percentageOffset === 0 ? 1 : percentageOffset - 0.1;
+  return percentageOffset;
+}
+
+
+function createArrow(node, color, className) {
+  const line = d3.line()
+    .x(function (d) {
+      return d.x;
+    })
+    .y(function (d) {
+      return d.y;
+    });
+
+  const lengthOfArrowHead = 10;
+
+  node
+    .append("path")
+    .attr("class", className)
+    .attr("id", d => {
+      if (color === "color") //set ids on the colored arrows
+        return "node-" + d.name
+    })
+    .attr("d", d => {
+      const heightOfArrow = d.y1 - d.y0;
+      const pointsRight = [{
+        x: -lengthOfArrowHead + 2,
+        y: 0
+      },
+      {
+        x: 0,
+        y: heightOfArrow / 2
+      },
+      {
+        x: -lengthOfArrowHead + 2,
+        y: heightOfArrow
+      }, {
+        x: 25 - lengthOfArrowHead,
+        y: heightOfArrow
+      }, {
+        x: 25,
+        y: heightOfArrow / 2
+      }, {
+        x: 25 - lengthOfArrowHead,
+        y: 0
+      }]
+      return line(pointsRight)
+    }).
+    attr("fill", d => color === "color" ? d.defColor : color)
+    .attr("transform", d => {
+      return "translate(" + d.x0 + "," + d.y0 + ")";
+    })
+}
+
+let animateDash;
+
+
 class SankeyChart {
   constructor(config) {
     if (!config.nodes.data) {
@@ -976,12 +1028,13 @@ class SankeyChart {
       this.config.align == "left"
         ? left
         : this.config.align == "right"
-        ? right
-        : this.config.align == "center"
-        ? center
-        : this.config.align == "center"
-        ? center
-        : justify;
+          ? right
+          : this.config.align == "center"
+            ? center
+            : this.config.align == "center"
+              ? center
+              : justify;
+
 
     //create associations and additional data
     this.graph = computeNodeLinks(
@@ -1024,7 +1077,7 @@ class SankeyChart {
       this.config.links.baseRadius
     );
 
-    
+
     this.graph = computeNodeBreadths.call(this);
     this.graph = resolveCollisionsAndRelax.call(this);
     this.graph = computeLinkBreadths(this.graph);
@@ -1085,10 +1138,160 @@ class SankeyChart {
     //not using resolveLinkOverlaps at the mo
   }
 
+  update(graph) {
+    graph = computeNodeLinks(graph, this.config.id);
+    //graph = identifyCircles(graph, sortNodes);
+    graph = selectCircularLinkTypes(graph, this.config.id);
+    /* graph = createVirtualNodes(
+       graph,
+       this.config.links.useVirtualRoutes,
+       this.config.id
+     );*/
+    graph = computeLinkBreadths(graph);
+    //graph = straigtenVirtualNodes(graph);
+    graph = addCircularPathData(
+      graph,
+      this.config.id,
+      this.config.links.circularGap,
+      this.config.links.baseRadius,
+      this.config.links.verticalMargin
+    );
+
+    /*graph = addVirtualPathData(
+      graph,
+      this.config.links.virtualLinkType
+    );*/
+    graph = computeLinkBreadths(graph);
+    graph = sortSourceLinks(graph, this.config.id);
+    graph = sortTargetLinks(graph, this.config.id);
+
+    graph = addCircularPathData(
+      graph,
+      this.config.id,
+      this.config.links.circularGap,
+      this.config.links.baseRadius,
+      this.config.links.verticalMargin
+    );
+
+
+
+    //move arrows 
+    if (this.config.arrows.enabled) {
+      let arrows = d3.selectAll(".arrow")
+        .data(graph.links)
+        .attr("d", (d) => d.path)
+
+      d3.selectAll(".arrow-head").remove()
+      let headSize = this.config.arrows.headSize;
+      let arrowLength = this.config.arrows.length;
+      let gapLength = this.config.arrows.gap;
+      let totalDashArrayLength = arrowLength + gapLength;
+      let arrowColor = this.config.arrows.color;
+      if (this.config.arrows.type === "arrows") {
+        arrows.each(function (arrow) {
+          let thisPath = d3.select(this).node();
+          let parentG = d3.select(this.parentNode);
+          let pathLength = thisPath.getTotalLength();
+          let numberOfArrows = Math.ceil(pathLength / totalDashArrayLength);
+
+          // remove the last arrow head if it will overlap the target node
+          if (
+            (numberOfArrows - 1) * totalDashArrayLength +
+            (arrowLength + (headSize + 1)) >
+            pathLength
+          ) {
+            numberOfArrows = numberOfArrows - 1;
+          }
+
+          let arrowHeadData = d3.range(numberOfArrows).map(function (d, i) {
+            let length = i * totalDashArrayLength + arrowLength;
+
+            let point = thisPath.getPointAtLength(length);
+            let previousPoint = thisPath.getPointAtLength(length - 2);
+
+            let rotation = 0;
+
+            if (point.y == previousPoint.y) {
+              rotation = point.x < previousPoint.x ? 180 : 0;
+            } else if (point.x == previousPoint.x) {
+              rotation = point.y < previousPoint.y ? -90 : 90;
+            } else {
+              let adj = Math.abs(point.x - previousPoint.x);
+              let opp = Math.abs(point.y - previousPoint.y);
+              let angle = Math.atan(opp / adj) * (180 / Math.PI);
+              if (point.x < previousPoint.x) {
+                angle = angle + (90 - angle) * 2;
+              }
+              if (point.y < previousPoint.y) {
+                rotation = -angle;
+              } else {
+                rotation = angle;
+              }
+            }
+
+            return { x: point.x, y: point.y, rotation: rotation };
+          });
+
+          parentG
+            .selectAll(".arrow-heads")
+            .data(arrowHeadData)
+            .enter()
+            .append("path")
+            .attr("d", function (d) {
+              return (
+                "M" +
+                d.x +
+                "," +
+                (d.y - headSize / 2) +
+                " " +
+                "L" +
+                (d.x + headSize) +
+                "," +
+                d.y +
+                " " +
+                "L" +
+                d.x +
+                "," +
+                (d.y + headSize / 2)
+              );
+            })
+            .attr("class", "arrow-head")
+            .attr("transform", function (d) {
+              return "rotate(" + d.rotation + "," + d.x + "," + d.y + ")";
+            })
+            .attr("fill", arrowColor)
+        });
+      }
+
+    }
+
+    //move links
+    d3.selectAll(".sankey-link").attr("d", link => {
+      return link.path;
+    });
+
+    return graph;
+  }
+
+
   draw(id) {
     // select node
     const container = d3.select(`#${id}`);
     container.selectChildren().remove();
+
+    let color = d3.scaleOrdinal(d3.schemeTableau10);
+    if (this.config.links.colorPalette) {
+      color = d3.scaleOrdinal(this.config.links.colorPalette);
+    }
+
+    const numberFormat = new Intl.NumberFormat('en-EN', {
+      maximumFractionDigits: 1,
+    });
+
+    let colorNode = d3.scaleOrdinal(d3.schemeTableau10);
+    if (this.config.nodes.colorPalette) {
+      colorNode = d3.scaleOrdinal(this.config.nodes.colorPalette);
+    }
 
     let svg = container
       .append("svg")
@@ -1111,17 +1314,138 @@ class SankeyChart {
       .attr("font-size", 10)
       .selectAll("g");
 
-    let node = nodeG.data(this.graph.nodes).enter().append("g");
 
-    node
-      .append("rect")
-      .attr("x", (d) => d.x0)
-      .attr("y", (d) => d.y0)
-      .attr("height", (d) => d.y1 - d.y0)
-      .attr("width", (d) => d.x1 - d.x0)
-      .style("fill", this.config.nodes.fill)
-      .style("stroke", this.config.nodes.stroke)
-      .style("opacity", this.config.nodes.opacity);
+    let node = nodeG.data(this.graph.nodes).enter().append("g");
+    if (this.config.nodes.type == "rectangle") {
+      node
+        .append("rect")
+        .attr("id", d => {
+          return "node-" + d.name
+        })
+        .attr("x", (d) => d.x0)
+        .attr("y", (d) => d.y0)
+        .attr("height", (d) => d.y1 - d.y0 > 0 ? d.y1 - d.y0 : 0.5)
+        .attr("width", (d) => d.x1 - d.x0)
+        .style("fill", this.config.nodes.fill)
+        .style("stroke", this.config.nodes.stroke)
+        .style("opacity", this.config.nodes.opacity);
+
+    } else {
+      const line = d3.line()
+        .x(function (d) {
+          return d.x;
+        })
+        .y(function (d) {
+          return d.y;
+        });
+
+      const lengthOfArrowHead = 10;
+
+      node
+        .append("path")
+        //.attr("class", className)
+        .attr("id", d => {
+          //if (color === "color") //set ids on the colored arrows
+          return "node-" + d.name
+        })
+        .attr("d", d => {
+          const heightOfArrow = d.y1 - d.y0;
+          const pointsRight = [{
+            x: -lengthOfArrowHead + 2,
+            y: 0
+          },
+          {
+            x: 0,
+            y: heightOfArrow / 2
+          },
+          {
+            x: -lengthOfArrowHead + 2,
+            y: heightOfArrow
+          }, {
+            x: 25 - lengthOfArrowHead,
+            y: heightOfArrow
+          }, {
+            x: 25,
+            y: heightOfArrow / 2
+          }, {
+            x: 25 - lengthOfArrowHead,
+            y: 0
+          }]
+          return line(pointsRight)
+        })
+        .style("fill", this.config.nodes.fill)
+        .attr("transform", d => {
+          return "translate(" + d.x0 + "," + d.y0 + ")";
+        })
+    }
+
+    node.selectAll("rect,path")
+      .style("fill", d => {
+        let colors = [];
+        if (CSS.supports('color', d.color)) {
+          d.defColor = d.color
+          return d.defColor;
+        } else {
+          if (!d.color || d.color === "")
+            d.defColor = this.config.labelColor;
+          else {
+            d.defColor = colorNode(d.color);
+            return d.defColor;
+          }
+        }
+
+        if (this.config.nodes.colorPropagation === "source") {
+          d.targetLinks.forEach(link => {
+            if (link.type == "virtual") {
+              const target = link.target.name;
+              let l2 = link.source.targetLinks[0];
+              while (l2.source.virtual === true) {
+                l2 = l2.source.targetLinks[0];
+              }
+              const source = l2.source.name;
+              graph.links.forEach(l => {
+                if (l.source.name === source && l.target.name === target)
+                  colors.push(l.defColor);
+              })
+            } else
+              colors.push(link.defColor);
+          });
+          if (colors.every(el => el === colors[0]) && colors[0] !== undefined) {
+            d.defColor = colors[0];
+            return colors[0];
+          }
+
+          const complement = Colors.complement(getRGBColor(bgColor));
+          d.defColor = `rgb(${complement.R},${complement.G},${complement.B})`;
+          return d.defColor;
+        } else if (this.config.nodes.colorPropagation === "target") {
+          d.sourceLinks.forEach(link => {
+            if (link.type == "virtual") {
+              const source = link.source.name;
+              let l2 = link.target.sourceLinks[0];
+              while (l2.target.virtual === true) {
+                l2 = l2.target.sourceLinks[0];
+              }
+              const target = l2.target.name;
+              graph.links.forEach(l => {
+                if (l.source.name === source && l.target.name === target) {
+                  colors.push(l.defColor);
+                }
+
+              })
+            } else
+              colors.push(link.defColor);
+          });
+          if (colors.every(el => el === colors[0]) && colors[0] !== undefined) {
+            d.defColor = colors[0];
+            return colors[0];
+          }
+          const complement = Colors.complement(getRGBColor(bgColor));
+          d.defColor = `rgb(${complement.R},${complement.G},${complement.B})`;
+          return d.defColor;
+        } else
+          return "lightgrey";
+      });
 
     node
       .append("text")
@@ -1129,11 +1453,24 @@ class SankeyChart {
       .attr("y", (d) => d.y0 - 8)
       .attr("dy", "0.35em")
       .attr("text-anchor", "middle")
+      .attr("fill", this.config.labelColor)
       .text(this.config.id);
 
     node.append("title").text(function (d) {
-      return d.name + "\n" + d.value;
+      let string = `${d.name}`;
+      let totalIn = 0;
+      d.targetLinks.forEach(link => {
+        totalIn += link.value
+      });
+      let totalOut = 0;
+      d.sourceLinks.forEach(link => {
+        totalOut += link.value
+      });
+      string += `\nIn: ${numberFormat.format(totalIn)}\nOut: ${numberFormat.format(totalOut)}`
+
+      return string;
     });
+
 
     var link = linkG.data(this.graph.links).enter().append("g");
 
@@ -1142,12 +1479,33 @@ class SankeyChart {
       .append("path")
       .attr("class", "sankey-link")
       .attr("d", (d) => d.path)
+      .attr("id", d => {
+        return "link-" + d.index
+      })
       .style("stroke-width", (d) => Math.max(1, d.width))
-      .style("stroke", this.config.links.color);
+      .style("stroke", this.config.links.color)
+      .style("stroke-opacity", 0.6)
+      .style("stroke", d => {
+        if (CSS.supports('color', d.color))
+          d.defColor = d.color
+        else {
+          if (!d.color || d.color === "")
+            d.defColor = this.config.labelColor;
+          else
+            d.defColor = color(d.color);
+        }
+        if (d.alert === "true")
+          return "red"
+        return d.defColor;
+      })
 
-    link.append("title").text(function (d) {
-      return d.source.name + " → " + d.target.name + "\n Index: " + d.index;
-    });
+    link.append("title").text(d => {
+      let string = `${d.source.name} → ${d.target.name} \nValue: ${numberFormat.format(d.value)}`;
+      if (d.speed)
+        string += `\nSpeed: ${numberFormat.format(d.speed)} `;
+      return string;
+    }).attr("data-html", "true")
+
 
     svg
       .append("rect")
@@ -1174,6 +1532,7 @@ class SankeyChart {
       .style("fill", "none")
       .style("stroke", this.config.showCanvasBorder ? "green" : "none");
 
+
     if (this.config.arrows.enabled) {
       let arrowLength = this.config.arrows.length;
       let gapLength = this.config.arrows.gap;
@@ -1190,84 +1549,116 @@ class SankeyChart {
 
       let arrows = arrowsG
         .append("path")
+        .attr("class", "arrow")
         .attr("d", (d) => d.path)
         .style("stroke-width", 1)
         .style("stroke", arrowColor)
         .style("stroke-dasharray", arrowLength + "," + gapLength);
 
-      arrows.each(function (arrow) {
-        let thisPath = d3.select(this).node();
-        let parentG = d3.select(this.parentNode);
-        let pathLength = thisPath.getTotalLength();
-        let numberOfArrows = Math.ceil(pathLength / totalDashArrayLength);
+      if (this.config.arrows.type === "arrows") {
+        arrows.each(function (arrow) {
+          let thisPath = d3.select(this).node();
+          let parentG = d3.select(this.parentNode);
+          let pathLength = thisPath.getTotalLength();
+          let numberOfArrows = Math.ceil(pathLength / totalDashArrayLength);
 
-        // remove the last arrow head if it will overlap the target node
-        if (
-          (numberOfArrows - 1) * totalDashArrayLength +
+          // remove the last arrow head if it will overlap the target node
+          if (
+            (numberOfArrows - 1) * totalDashArrayLength +
             (arrowLength + (headSize + 1)) >
-          pathLength
-        ) {
-          numberOfArrows = numberOfArrows - 1;
-        }
-
-        let arrowHeadData = d3.range(numberOfArrows).map(function (d, i) {
-          let length = i * totalDashArrayLength + arrowLength;
-
-          let point = thisPath.getPointAtLength(length);
-          let previousPoint = thisPath.getPointAtLength(length - 2);
-
-          let rotation = 0;
-
-          if (point.y == previousPoint.y) {
-            rotation = point.x < previousPoint.x ? 180 : 0;
-          } else if (point.x == previousPoint.x) {
-            rotation = point.y < previousPoint.y ? -90 : 90;
-          } else {
-            let adj = Math.abs(point.x - previousPoint.x);
-            let opp = Math.abs(point.y - previousPoint.y);
-            let angle = Math.atan(opp / adj) * (180 / Math.PI);
-            if (point.x < previousPoint.x) {
-              angle = angle + (90 - angle) * 2;
-            }
-            if (point.y < previousPoint.y) {
-              rotation = -angle;
-            } else {
-              rotation = angle;
-            }
+            pathLength
+          ) {
+            numberOfArrows = numberOfArrows - 1;
           }
 
-          return { x: point.x, y: point.y, rotation: rotation };
+          let arrowHeadData = d3.range(numberOfArrows).map(function (d, i) {
+            let length = i * totalDashArrayLength + arrowLength;
+
+            let point = thisPath.getPointAtLength(length);
+            let previousPoint = thisPath.getPointAtLength(length - 2);
+
+            let rotation = 0;
+
+            if (point.y == previousPoint.y) {
+              rotation = point.x < previousPoint.x ? 180 : 0;
+            } else if (point.x == previousPoint.x) {
+              rotation = point.y < previousPoint.y ? -90 : 90;
+            } else {
+              let adj = Math.abs(point.x - previousPoint.x);
+              let opp = Math.abs(point.y - previousPoint.y);
+              let angle = Math.atan(opp / adj) * (180 / Math.PI);
+              if (point.x < previousPoint.x) {
+                angle = angle + (90 - angle) * 2;
+              }
+              if (point.y < previousPoint.y) {
+                rotation = -angle;
+              } else {
+                rotation = angle;
+              }
+            }
+
+            return { x: point.x, y: point.y, rotation: rotation };
+          });
+
+          parentG
+            .selectAll(".arrow-heads")
+            .data(arrowHeadData)
+            .enter()
+            .append("path")
+            .attr("d", function (d) {
+              return (
+                "M" +
+                d.x +
+                "," +
+                (d.y - headSize / 2) +
+                " " +
+                "L" +
+                (d.x + headSize) +
+                "," +
+                d.y +
+                " " +
+                "L" +
+                d.x +
+                "," +
+                (d.y + headSize / 2)
+              );
+            })
+            .attr("class", "arrow-head")
+            .attr("transform", function (d) {
+              return "rotate(" + d.rotation + "," + d.x + "," + d.y + ")";
+            })
+            .style("fill", arrowColor);
         });
 
-        parentG
-          .selectAll(".arrow-heads")
-          .data(arrowHeadData)
-          .enter()
-          .append("path")
-          .attr("d", function (d) {
-            return (
-              "M" +
-              d.x +
-              "," +
-              (d.y - headSize / 2) +
-              " " +
-              "L" +
-              (d.x + headSize) +
-              "," +
-              d.y +
-              " " +
-              "L" +
-              d.x +
-              "," +
-              (d.y + headSize / 2)
-            );
+        clearInterval(animateDash);
+      } else {
+        //create animated dash with different speed
+        let max = 0
+        let min = Number.POSITIVE_INFINITY
+        const links = this.graph.links;
+        if (links[0].speed)
+          links.forEach(d => {
+            if (d.speed > max) max = d.speed
+            if (d.speed < min) min = d.speed
           })
-          .attr("class", "arrow-head")
-          .attr("transform", function (d) {
-            return "rotate(" + d.rotation + "," + d.x + "," + d.y + ")";
+        else
+          links.forEach(d => {
+            if (d.value > max) max = d.value
+            if (d.value < min) min = d.value
           })
-          .style("fill", arrowColor);
-      });
+        const speed = d3.scaleLinear()
+          .domain([min, max])
+          .range([1, 18]);
+
+        const duration = 50;
+        let percentageOffset = 1;
+        if (animateDash)
+          clearInterval(animateDash)
+        animateDash = setInterval(() => {
+          percentageOffset = updateDash(speed, percentageOffset)
+        }, duration);
+
+      }
     }
   }
 } // End of draw()

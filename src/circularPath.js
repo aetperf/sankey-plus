@@ -158,7 +158,7 @@ export function addCircularPathData(
         } else {
           // top links
           link.circularPathData.verticalFullExtent =
-            minY - verticalMargin - link.circularPathData.verticalBuffer;
+            Math.min(graph.y0, link.source.y0, link.target.y0) - verticalMargin - link.circularPathData.verticalBuffer; //minY
           link.circularPathData.verticalRightInnerExtent =
             link.circularPathData.verticalFullExtent +
             link.circularPathData.rightLargeArcRadius;
@@ -307,7 +307,7 @@ function createCircularPathString(link) {
       link.circularPathData.leftFullExtent +
       " " +
       link.circularPathData.verticalLeftInnerExtent +
-      " " + // End of arc X
+      " " +// End of arc X
       // line down
       "L" +
       link.circularPathData.leftFullExtent +
@@ -315,8 +315,8 @@ function createCircularPathString(link) {
       (link.circularPathData.targetY -
         link.circularPathData.leftSmallArcRadius) +
       " " +
-      // Arc around: Centre of arc X and  //Centre of arc Y
       "A" +
+      // Arc around: Centre of arc X and  //Centre of arc Y
       link.circularPathData.leftLargeArcRadius +
       " " +
       link.circularPathData.leftSmallArcRadius +
@@ -391,16 +391,20 @@ function createCircularPathString(link) {
       link.circularPathData.leftFullExtent +
       " " +
       link.circularPathData.verticalLeftInnerExtent +
-      " " + // End of arc X
-      // line up
-      "L" +
-      link.circularPathData.leftFullExtent +
-      " " +
-      (link.circularPathData.targetY +
-        link.circularPathData.leftSmallArcRadius) +
-      " " +
+      " "  // End of arc X
+    // line up
+    if ((link.circularPathData.targetY +
+      link.circularPathData.leftSmallArcRadius) < link.circularPathData.verticalLeftInnerExtent) {
+      pathString += "L" +
+        link.circularPathData.leftFullExtent +
+        " " +
+        (link.circularPathData.targetY +
+          link.circularPathData.leftSmallArcRadius) +
+        " "
       // Arc around: Centre of arc X and  //Centre of arc Y
-      "A" +
+    }
+
+    pathString += "A" +
       link.circularPathData.leftLargeArcRadius +
       " " +
       link.circularPathData.leftSmallArcRadius +
@@ -415,6 +419,10 @@ function createCircularPathString(link) {
       link.circularPathData.targetX +
       " " +
       link.circularPathData.targetY;
+
+    /*console.log(link.source.name, link.target.name, link.circularPathData.verticalLeftInnerExtent, (link.circularPathData.targetY +
+      link.circularPathData.leftSmallArcRadius), (link.circularPathData.targetY +
+        link.circularPathData.leftSmallArcRadius) > link.circularPathData.verticalLeftInnerExtent)*/
   }
 
   return pathString;
