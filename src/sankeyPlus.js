@@ -1454,6 +1454,7 @@ class SankeyChart {
       .attr("dy", "0.35em")
       .attr("text-anchor", "middle")
       .attr("fill", this.config.labelColor)
+      .style("cursor", "default")
       .text(this.config.id);
 
     node.append("title").text(function (d) {

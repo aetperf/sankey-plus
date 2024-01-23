@@ -159,7 +159,6 @@ export function sortSourceLinks(inputGraph, id) {
         }
       });
     }
-    console.log(nodesSourceLinks)
 
     // update y0 for links
     var ySourceOffset = node.y0;
