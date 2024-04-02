@@ -67,8 +67,8 @@ function computeNodeLinks(inputGraph, id) {
 
   graph.links.forEach(function (link, i) {
     link.index = i;
-    var source = link.source;
-    var target = link.target;
+    let source = link.source;
+    let target = link.target;
     if (
       (typeof source === "undefined" ? "undefined" : _typeof(source)) !==
       "object"
@@ -90,14 +90,14 @@ function computeNodeLinks(inputGraph, id) {
 function identifyCircles(inputGraph, sortNodes) {
   let graph = inputGraph;
 
-  var circularLinkID = 0;
+  let circularLinkID = 0;
   if (sortNodes === null || sortNodes(graph.nodes[0]) === undefined) {
     // Building adjacency graph
-    var adjList = [];
-    for (var i = 0; i < graph.links.length; i++) {
-      var link = graph.links[i];
-      var source = link.source.index;
-      var target = link.target.index;
+    let adjList = [];
+    for (let i = 0; i < graph.links.length; i++) {
+      let link = graph.links[i];
+      let source = link.source.index;
+      let target = link.target.index;
       if (!adjList[source]) adjList[source] = [];
       if (!adjList[target]) adjList[target] = [];
 
@@ -114,16 +114,16 @@ function identifyCircles(inputGraph, sortNodes) {
     });
 
     let circularLinks = {};
-    for (i = 0; i < cycles.length; i++) {
-      var cycle = cycles[i];
-      var last = cycle.slice(-2);
+    for (let i = 0; i < cycles.length; i++) {
+      let cycle = cycles[i];
+      let last = cycle.slice(-2);
       if (!circularLinks[last[0]]) circularLinks[last[0]] = {};
       circularLinks[last[0]][last[1]] = true;
     }
 
     graph.links.forEach(function (link) {
-      var target = link.target.index;
-      var source = link.source.index;
+      let target = link.target.index;
+      let source = link.source.index;
       // If self-linking or a back-edge
       if (
         target === source ||
@@ -235,7 +235,7 @@ function computeNodeValues(inputGraph) {
 function computeNodeDepths(inputGraph, sortNodes, align) {
   let graph = inputGraph;
 
-  var nodes, next, x;
+  let nodes, next, x;
 
   if (sortNodes != null && sortNodes(graph.nodes[0]) != undefined) {
     graph.nodes.sort(function (a, b) {
@@ -307,8 +307,8 @@ function createVirtualNodes(inputGraph, useVirtualRoutes, id) {
     let virtualLinkIndex = 0;
     let linksLength = graph.links.length;
 
-    for (var linkIndex = 0; linkIndex < linksLength; linkIndex++) {
-      var thisLink = graph.links[linkIndex];
+    for (let linkIndex = 0; linkIndex < linksLength; linkIndex++) {
+      let thisLink = graph.links[linkIndex];
 
       //if the link spans more than 1 column, then replace it with virtual nodes and links
       if (thisLink.target.column - thisLink.source.column < 2) {
@@ -318,7 +318,7 @@ function createVirtualNodes(inputGraph, useVirtualRoutes, id) {
 
         let totalToCreate = thisLink.target.column - thisLink.source.column - 1;
 
-        for (var n = 0; n < totalToCreate; n++) {
+        for (let n = 0; n < totalToCreate; n++) {
           let newNode = {};
 
           //get the next index number
@@ -371,8 +371,8 @@ function createVirtualNodes(inputGraph, useVirtualRoutes, id) {
 
     graph.links.forEach(function (link, i) {
       if (link.type == "virtual") {
-        var source = link.source;
-        var target = link.target;
+        let source = link.source;
+        let target = link.target;
         if (
           (typeof source === "undefined" ? "undefined" : _typeof(source)) !==
           "object"
@@ -534,7 +534,7 @@ function resolveCollisionsAndRelax() {
 
   resolveCollisions.call(this);
 
-  for (var alpha = 1, n = iterations; n > 0; --n) {
+  for (let alpha = 1, n = iterations; n > 0; --n) {
     relaxLeftAndRight((alpha *= 0.99), id);
     resolveCollisions.call(this);
   }
@@ -542,15 +542,15 @@ function resolveCollisionsAndRelax() {
   // For each node in each column, check the node's vertical position in relation to its targets and sources vertical position
   // and shift up/down to be closer to the vertical middle of those targets and sources
   function relaxLeftAndRight(alpha, id) {
-    var columnsLength = columns.length;
+    let columnsLength = columns.length;
 
     columns.forEach(function (nodes) {
-      var n = nodes.length;
-      var depth = nodes[0].depth;
+      let n = nodes.length;
+      let depth = nodes[0].depth;
 
       nodes.forEach(function (node) {
         // check the node is not an orphan
-        var nodeHeight;
+        let nodeHeight;
         if (node.sourceLinks.length || node.targetLinks.length) {
           if (node.partOfCycle && numberOfNonSelfLinkingCycles(node, id) > 0);
           else if (depth == 0 && n == 1) {
@@ -567,15 +567,15 @@ function resolveCollisionsAndRelax() {
             node.targetLinks.length == 1 &&
             node.targetLinks[0].source.sourceLinks.length == 1
           ) {
-            //var avgSourceY = d3.mean(node.targetLinks, linkSourceCenter);
+            //let avgSourceY = d3.mean(node.targetLinks, linkSourceCenter);
             let nodeHeight = node.y1 - node.y0;
             node.y0 = node.targetLinks[0].source.y0;
             node.y1 = node.y0 + nodeHeight;
           } else {
-            var avg = 0;
+            let avg = 0;
 
-            var avgTargetY = d3.mean(node.sourceLinks, linkTargetCenter);
-            var avgSourceY = d3.mean(node.targetLinks, linkSourceCenter);
+            let avgTargetY = d3.mean(node.sourceLinks, linkTargetCenter);
+            let avgSourceY = d3.mean(node.targetLinks, linkSourceCenter);
 
             if (avgTargetY && avgSourceY) {
               avg = (avgTargetY + avgSourceY) / 2;
@@ -583,7 +583,7 @@ function resolveCollisionsAndRelax() {
               avg = avgTargetY || avgSourceY;
             }
 
-            var dy = (avg - nodeCenter(node)) * alpha;
+            let dy = (avg - nodeCenter(node)) * alpha;
             // positive if it node needs to move down
             node.y0 += dy;
             node.y1 += dy;
@@ -596,7 +596,7 @@ function resolveCollisionsAndRelax() {
   // For each column, check if nodes are overlapping, and if so, shift up/down
   function resolveCollisions() {
     columns.forEach((nodes) => {
-      var node,
+      let node,
         dy,
         y = graph.y0,
         n = nodes.length,
@@ -650,8 +650,8 @@ function computeLinkBreadths(inputGraph) {
     node.targetLinks.sort(ascendingSourceBreadth);
   });
   graph.nodes.forEach(function (node) {
-    var y0 = node.y0;
-    var y1 = y0;
+    let y0 = node.y0;
+    let y1 = y0;
 
     node.sourceLinks.forEach(function (link) {
       link.y0 = y0 + link.width / 2;
@@ -701,11 +701,11 @@ function straigtenVirtualNodes(inputGraph) {
 function fillHeight(inputGraph) {
   let graph = inputGraph;
 
-  var nodes = graph.nodes;
-  var links = graph.links;
+  let nodes = graph.nodes;
+  let links = graph.links;
 
-  var top = false;
-  var bottom = false;
+  let top = false;
+  let bottom = false;
 
   links.forEach(function (link) {
     if (link.circularLinkType == "top") {
@@ -716,17 +716,17 @@ function fillHeight(inputGraph) {
   });
 
   if (top == false || bottom == false) {
-    var minY0 = d3.min(nodes, function (node) {
+    let minY0 = d3.min(nodes, function (node) {
       return node.y0;
     });
 
-    var maxY1 = d3.max(nodes, function (node) {
+    let maxY1 = d3.max(nodes, function (node) {
       return node.y1;
     });
 
-    var currentHeight = maxY1 - minY0;
-    var chartHeight = graph.y1 - graph.y0;
-    var ratio = chartHeight / currentHeight;
+    let currentHeight = maxY1 - minY0;
+    let chartHeight = graph.y1 - graph.y0;
+    let ratio = chartHeight / currentHeight;
 
     let moveScale = d3
       .scaleLinear()
@@ -746,7 +746,7 @@ function fillHeight(inputGraph) {
       });
     } else {
       nodes.forEach(function (node) {
-        var nodeHeight = node.y1 - node.y0;
+        let nodeHeight = node.y1 - node.y0;
         let dy = moveScale(node.y0) - node.y0;
         node.y0 = moveScale(node.y0);
         node.y1 = node.y0 + nodeHeight;
@@ -800,24 +800,24 @@ function addVirtualPathData(inputGraph, virtualLinkType) {
             node.column == columnToTest &&
             node.replacedLink != replacedLink.index
           ) {
-            var t = i / (numberOfColumnsToTest + 1);
+            let t = i / (numberOfColumnsToTest + 1);
 
             // Find all the points of a cubic bezier curve in javascript
             // https://stackoverflow.com/questions/15397596/find-all-the-points-of-a-cubic-bezier-curve-in-javascript
 
-            var B0_t = Math.pow(1 - t, 3);
-            var B1_t = 3 * t * Math.pow(1 - t, 2);
-            var B2_t = 3 * Math.pow(t, 2) * (1 - t);
-            var B3_t = Math.pow(t, 3);
+            let B0_t = Math.pow(1 - t, 3);
+            let B1_t = 3 * t * Math.pow(1 - t, 2);
+            let B2_t = 3 * Math.pow(t, 2) * (1 - t);
+            let B3_t = Math.pow(t, 3);
 
-            var py_t =
+            let py_t =
               B0_t * replacedLink.y0 +
               B1_t * replacedLink.y0 +
               B2_t * replacedLink.y1 +
               B3_t * replacedLink.y1;
 
-            var linkY0AtColumn = py_t - replacedLink.width / 2;
-            var linkY1AtColumn = py_t + replacedLink.width / 2;
+            let linkY0AtColumn = py_t - replacedLink.width / 2;
+            let linkY1AtColumn = py_t + replacedLink.width / 2;
 
             if (linkY0AtColumn > node.y0 && linkY0AtColumn < node.y1) {
               replacedLink.useVirtual = true;
@@ -853,16 +853,16 @@ function addVirtualPathData(inputGraph, virtualLinkType) {
 
       replacedLink.path = pathString;
     } else {
-      var normalPath = d3
+      let normalPath = d3
         .linkHorizontal()
         .source(function (d) {
-          var x = d.x0;
-          var y = d.y0;
+          let x = d.x0;
+          let y = d.y0;
           return [x, y];
         })
         .target(function (d) {
-          var x = d.x1;
-          var y = d.y1;
+          let x = d.x1;
+          let y = d.y1;
           return [x, y];
         });
       replacedLink.path = normalPath(replacedLink);
@@ -902,6 +902,21 @@ function updateDash(speed, percentageOffset) {
     .style("stroke-dasharray", "10 10")
   percentageOffset = percentageOffset === 0 ? 1 : percentageOffset - 0.1;
   return percentageOffset;
+}
+
+
+function getRGBColor(color) {
+  let rgb = [];
+  if (!isNaN(parseFloat(color)) || color[0] === '#') //hexa format 
+    rgb = Colors.hex2rgb(color).a
+  else if (color.substring(0, 3) === 'rgb') { //rgb format 
+    let colorSplit = color.split('(')[1]
+    rgb.push(parseInt(colorSplit.split(",")[0]))
+    rgb.push(parseInt(colorSplit.split(",")[1]))
+    rgb.push(parseInt(colorSplit.split(",")[2]))
+  } else //name format
+    rgb = Colors.name2rgb(color).a
+  return rgb
 }
 
 
@@ -1139,16 +1154,13 @@ class SankeyChart {
   }
 
   update(graph) {
+    graph.nodes.forEach(function (node) {
+      node.y1 = node.y0 + node.value * graph.ky;
+    });
     graph = computeNodeLinks(graph, this.config.id);
-    //graph = identifyCircles(graph, sortNodes);
     graph = selectCircularLinkTypes(graph, this.config.id);
-    /* graph = createVirtualNodes(
-       graph,
-       this.config.links.useVirtualRoutes,
-       this.config.id
-     );*/
+
     graph = computeLinkBreadths(graph);
-    //graph = straigtenVirtualNodes(graph);
     graph = addCircularPathData(
       graph,
       this.config.id,
@@ -1156,11 +1168,6 @@ class SankeyChart {
       this.config.links.baseRadius,
       this.config.links.verticalMargin
     );
-
-    /*graph = addVirtualPathData(
-      graph,
-      this.config.links.virtualLinkType
-    );*/
     graph = computeLinkBreadths(graph);
     graph = sortSourceLinks(graph, this.config.id);
     graph = sortTargetLinks(graph, this.config.id);
@@ -1172,8 +1179,6 @@ class SankeyChart {
       this.config.links.baseRadius,
       this.config.links.verticalMargin
     );
-
-
 
     //move arrows 
     if (this.config.arrows.enabled) {
@@ -1316,7 +1321,7 @@ class SankeyChart {
 
 
     let node = nodeG.data(this.graph.nodes).enter().append("g");
-    if (this.config.nodes.type == "rectangle") {
+    if (this.config.nodes.type == "rectangle" || this.config.nodes.type == "image") {
       node
         .append("rect")
         .attr("id", d => {
@@ -1379,73 +1384,6 @@ class SankeyChart {
         })
     }
 
-    node.selectAll("rect,path")
-      .style("fill", d => {
-        let colors = [];
-        if (CSS.supports('color', d.color)) {
-          d.defColor = d.color
-          return d.defColor;
-        } else {
-          if (!d.color || d.color === "")
-            d.defColor = this.config.labelColor;
-          else {
-            d.defColor = colorNode(d.color);
-            return d.defColor;
-          }
-        }
-
-        if (this.config.nodes.colorPropagation === "source") {
-          d.targetLinks.forEach(link => {
-            if (link.type == "virtual") {
-              const target = link.target.name;
-              let l2 = link.source.targetLinks[0];
-              while (l2.source.virtual === true) {
-                l2 = l2.source.targetLinks[0];
-              }
-              const source = l2.source.name;
-              graph.links.forEach(l => {
-                if (l.source.name === source && l.target.name === target)
-                  colors.push(l.defColor);
-              })
-            } else
-              colors.push(link.defColor);
-          });
-          if (colors.every(el => el === colors[0]) && colors[0] !== undefined) {
-            d.defColor = colors[0];
-            return colors[0];
-          }
-
-          const complement = Colors.complement(getRGBColor(bgColor));
-          d.defColor = `rgb(${complement.R},${complement.G},${complement.B})`;
-          return d.defColor;
-        } else if (this.config.nodes.colorPropagation === "target") {
-          d.sourceLinks.forEach(link => {
-            if (link.type == "virtual") {
-              const source = link.source.name;
-              let l2 = link.target.sourceLinks[0];
-              while (l2.target.virtual === true) {
-                l2 = l2.target.sourceLinks[0];
-              }
-              const target = l2.target.name;
-              graph.links.forEach(l => {
-                if (l.source.name === source && l.target.name === target) {
-                  colors.push(l.defColor);
-                }
-
-              })
-            } else
-              colors.push(link.defColor);
-          });
-          if (colors.every(el => el === colors[0]) && colors[0] !== undefined) {
-            d.defColor = colors[0];
-            return colors[0];
-          }
-          const complement = Colors.complement(getRGBColor(bgColor));
-          d.defColor = `rgb(${complement.R},${complement.G},${complement.B})`;
-          return d.defColor;
-        } else
-          return "lightgrey";
-      });
 
     node
       .append("text")
@@ -1473,32 +1411,63 @@ class SankeyChart {
     });
 
 
-    var link = linkG.data(this.graph.links).enter().append("g");
+    const link = linkG.data(this.graph.links).enter().append("g");
 
-    link
+    let path = link
       .filter((d) => d.path)
       .append("path")
       .attr("class", "sankey-link")
       .attr("d", (d) => d.path)
       .attr("id", d => {
         return "link-" + d.index
-      })
-      .style("stroke-width", (d) => Math.max(1, d.width))
-      .style("stroke", this.config.links.color)
-      .style("stroke-opacity", 0.6)
+      });
+
+    //create gradient for degraded color
+    if (this.config.links.degradedColor) {
+      const gradient = link
+        .append("linearGradient")
+        .attr("id", (d) => {
+          return "gradient-" + d.index
+        })
+        .attr("gradientUnits", "userSpaceOnUse")
+        .attr("x1", (d) => {
+          return d.source.x1
+        })
+        .attr("x2", (d) => d.target.x0);
+
+      gradient
+        .append("stop")
+        .attr("offset", "0%")
+        .attr("stop-color", (d) => d.source.color);
+
+      gradient
+        .append("stop")
+        .attr("offset", "100%")
+        .attr("stop-color", (d) => d.target.color);
+    }
+
+    //color the links 
+    path
       .style("stroke", d => {
         if (CSS.supports('color', d.color))
           d.defColor = d.color
         else {
-          if (!d.color || d.color === "")
-            d.defColor = this.config.labelColor;
-          else
-            d.defColor = color(d.color);
+          if (this.config.links.degradedColor) {
+            d.defColor = `url(#gradient-${d.index})`
+          } else {
+            if (!d.color || d.color === "")
+              d.defColor = this.config.labelColor;
+            else
+              d.defColor = color(d.color);
+          }
         }
         if (d.alert === "true")
           return "red"
         return d.defColor;
       })
+      .style("stroke-width", (d) => Math.max(1, d.width))
+      .style("stroke-opacity", 0.6)
+
 
     link.append("title").text(d => {
       let string = `${d.source.name} → ${d.target.name} \nValue: ${numberFormat.format(d.value)}`;
@@ -1507,6 +1476,75 @@ class SankeyChart {
       return string;
     }).attr("data-html", "true")
 
+    //color the nodes
+    node.selectAll("rect,path")
+      .style("fill", d => {
+        let colors = [];
+        if (CSS.supports('color', d.color)) {
+          d.defColor = d.color
+          return d.defColor;
+        } else {
+          if (!d.color || d.color === "")
+            d.defColor = this.config.labelColor;
+          else {
+            d.defColor = colorNode(d.color);
+            return d.defColor;
+          }
+        }
+        if (this.config.nodes.colorPropagation === "source") {
+          d.targetLinks.forEach(link => {
+            if (link.type == "virtual") {
+              const target = link.target.name;
+              let l2 = link.source.targetLinks[0];
+              while (l2.source.virtual === true) {
+                l2 = l2.source.targetLinks[0];
+              }
+              const source = l2.source.name;
+              graph.links.forEach(l => {
+                if (l.source.name === source && l.target.name === target) {
+                  colors.push(l.defColor);
+                }
+              })
+            } else {
+              colors.push(link.defColor);
+            }
+
+          });
+          if (colors.every(el => el === colors[0]) && colors[0] !== undefined) {
+            d.defColor = colors[0];
+            return colors[0];
+          }
+          const complement = Colors.complement(getRGBColor(this.config.bgColor));
+          d.defColor = `rgb(${complement.R},${complement.G},${complement.B})`;
+          return d.defColor;
+        } else if (this.config.nodes.colorPropagation === "target") {
+          d.sourceLinks.forEach(link => {
+            if (link.type == "virtual") {
+              const source = link.source.name;
+              let l2 = link.target.sourceLinks[0];
+              while (l2.target.virtual === true) {
+                l2 = l2.target.sourceLinks[0];
+              }
+              const target = l2.target.name;
+              graph.links.forEach(l => {
+                if (l.source.name === source && l.target.name === target) {
+                  colors.push(l.defColor);
+                }
+
+              })
+            } else
+              colors.push(link.defColor);
+          });
+          if (colors.every(el => el === colors[0]) && colors[0] !== undefined) {
+            d.defColor = colors[0];
+            return colors[0];
+          }
+          const complement = Colors.complement(getRGBColor(this.config.bgColor));
+          d.defColor = `rgb(${complement.R},${complement.G},${complement.B})`;
+          return d.defColor;
+        } else
+          return "lightgrey";
+      });
 
     svg
       .append("rect")
@@ -1542,7 +1580,7 @@ class SankeyChart {
 
       let totalDashArrayLength = arrowLength + gapLength;
 
-      var arrowsG = linkG
+      const arrowsG = linkG
         .data(this.graph.links)
         .enter()
         .append("g")
