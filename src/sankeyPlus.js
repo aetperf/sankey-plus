@@ -25,7 +25,6 @@ import {
 import { addCircularPathData } from "./circularPath.js";
 import { adjustSankeySize } from "./adjustSankeySize.js";
 import { adjustGraphExtents } from "./adjustGraphExtents.js";
-
 //internal functions
 
 const _typeof =
@@ -899,7 +898,8 @@ function updateDash(speed, percentageOffset) {
     .style("stroke-dashoffset", d => {
       return percentageOffset * (d.speed ? speed(d.speed) : speed(d.value))
     })
-    .style("stroke-dasharray", "10 10")
+    .style("stroke-dasharray", "10, 10")
+
   percentageOffset = percentageOffset === 0 ? 1 : percentageOffset - 0.1;
   return percentageOffset;
 }
@@ -919,58 +919,55 @@ function getRGBColor(color) {
   return rgb
 }
 
-
-function createArrow(node, color, className) {
-  const line = d3.line()
-    .x(function (d) {
-      return d.x;
-    })
-    .y(function (d) {
-      return d.y;
-    });
-
-  const lengthOfArrowHead = 10;
-
-  node
-    .append("path")
-    .attr("class", className)
-    .attr("id", d => {
-      if (color === "color") //set ids on the colored arrows
-        return "node-" + d.name
-    })
-    .attr("d", d => {
-      const heightOfArrow = d.y1 - d.y0;
-      const pointsRight = [{
-        x: -lengthOfArrowHead + 2,
-        y: 0
-      },
-      {
-        x: 0,
-        y: heightOfArrow / 2
-      },
-      {
-        x: -lengthOfArrowHead + 2,
-        y: heightOfArrow
-      }, {
-        x: 25 - lengthOfArrowHead,
-        y: heightOfArrow
-      }, {
-        x: 25,
-        y: heightOfArrow / 2
-      }, {
-        x: 25 - lengthOfArrowHead,
-        y: 0
-      }]
-      return line(pointsRight)
-    }).
-    attr("fill", d => color === "color" ? d.defColor : color)
-    .attr("transform", d => {
-      return "translate(" + d.x0 + "," + d.y0 + ")";
-    })
-}
-
 let animateDash;
 
+//compute position and rotation of arrows in path
+const translateAlong = (path, offset, speed) => {
+  const l = path.getTotalLength();
+  const interpolate = d3.interpolate(0, l);
+  return function (t) {
+    let tOffset = (t * speed / 2 + offset) % 1; // Use modulus to loop tOffset back to 0 when it reaches 1
+    const p = path.getPointAtLength(interpolate(tOffset));
+    const p0 = path.getPointAtLength(interpolate(Math.max(tOffset - 0.01, 0))); // Get previous point
+    const angle = Math.atan2(p.y - p0.y, p.x - p0.x) * 180 / Math.PI; // Calculate angle
+    return "translate(" + p.x + "," + p.y + ") rotate(" + angle + ")";
+  };
+};
+
+let animationFrameIds = [];
+
+// Animate arrows along the path with interpolation
+function animateArrows(arrows, thisPath, arrowHeadData, speed) {
+  let start = null;
+  const frameRate = 20; // Target frame rate
+  const frameInterval = 1000 / frameRate; // Frame interval in ms
+  let lastFrameTime = 0;
+
+  function step(timestamp) {
+    if (!start) start = timestamp;
+    const elapsed = (timestamp - start) / 1500;
+
+    if (timestamp - lastFrameTime >= frameInterval) {
+      lastFrameTime = timestamp;
+      arrows.attr("transform", (d, i) =>
+        translateAlong(
+          thisPath,
+          i / arrowHeadData.length,
+          d.arrow.speed ? speed(d.arrow.speed) : speed(d.arrow.value)
+        )(elapsed)
+      );
+    }
+
+    const animationFrameId = requestAnimationFrame(step); // Call step function recursively
+    animationFrameIds.push(animationFrameId);
+  }
+
+  const animationFrameId = requestAnimationFrame(step);
+  animationFrameIds.push(animationFrameId);
+}
+function repeat(arrows, thisPath, arrowHeadData, speed) {
+  animateArrows(arrows, thisPath, arrowHeadData, speed);
+}
 
 class SankeyChart {
   constructor(config) {
@@ -1063,7 +1060,7 @@ class SankeyChart {
     this.graph.x0 = this.config.padding;
     this.graph.y0 = this.config.padding;
     this.graph.x1 = this.config.width - this.config.padding;
-    this.graph.y1 = this.config.height - this.config.padding;
+    this.graph.y1 = this.config.height // - this.config.padding;
     this.graph.py = 0;
 
     this.graph = identifyCircles(this.graph, sortNodes);
@@ -1153,13 +1150,29 @@ class SankeyChart {
     //not using resolveLinkOverlaps at the mo
   }
 
-  update(graph) {
+  update(graph, displayArrows = null) {
+    const nodeWidth = this.config.nodes.width;
+
     graph.nodes.forEach(function (node) {
       node.y1 = node.y0 + node.value * graph.ky;
+      node.x1 = node.x0 + nodeWidth;
     });
+
     graph = computeNodeLinks(graph, this.config.id);
     graph = selectCircularLinkTypes(graph, this.config.id);
-
+    /*graph = adjustSankeySize(
+      graph,
+      this.config.useManualScale,
+      this.config.nodes.padding,
+      this.config.nodes.width,
+      //this.config.nodes.maxHeight,
+      this.config.nodes.scaleDomain,
+      this.config.nodes.scaleRange,
+      this.config.links.circularLinkPortionTopBottom,
+      this.config.links.circularLinkPortionLeftRight,
+      this.config.scale,
+      this.config.links.baseRadius
+    );*/
     graph = computeLinkBreadths(graph);
     graph = addCircularPathData(
       graph,
@@ -1168,6 +1181,13 @@ class SankeyChart {
       this.config.links.baseRadius,
       this.config.links.verticalMargin
     );
+    /*graph = adjustGraphExtents(
+      graph,
+      this.config.padding,
+      this.config.height,
+      this.config.width,
+      this.config.nodes.width
+    );*/
     graph = computeLinkBreadths(graph);
     graph = sortSourceLinks(graph, this.config.id);
     graph = sortTargetLinks(graph, this.config.id);
@@ -1180,13 +1200,35 @@ class SankeyChart {
       this.config.links.verticalMargin
     );
 
+    if (this.config.nodes.type === "arrow") {
+      d3.selectAll("g.nodes path").attr("transform", d => {
+        let areNodesBehind = true;
+        if (d.sourceLinks.length === 0)
+          areNodesBehind = false;
+
+        d.sourceLinks.forEach(link => {
+          if (link.target.x0 > d.x0)
+            areNodesBehind = false;
+
+          if (link.circular)
+            areNodesBehind = false;
+        });
+
+        const height = d.y1 - d.y0;
+
+        let transform = + areNodesBehind ? "translate(" + d.x0 + "," + d.y0 + ") rotate(180," + nodeWidth / 2 + "," + height / 2 + ")" : "translate(" + d.x0 + "," + d.y0 + ")"
+        return transform;
+      })
+    }
+
+
     //move arrows 
     if (this.config.arrows.enabled) {
       let arrows = d3.selectAll(".arrow")
         .data(graph.links)
         .attr("d", (d) => d.path)
 
-      d3.selectAll(".arrow-head").remove()
+      d3.selectAll(".arrow-heads").remove();
       let headSize = this.config.arrows.headSize;
       let arrowLength = this.config.arrows.length;
       let gapLength = this.config.arrows.gap;
@@ -1260,20 +1302,225 @@ class SankeyChart {
                 (d.y + headSize / 2)
               );
             })
-            .attr("class", "arrow-head")
+            .attr("class", "arrow-heads")
             .attr("transform", function (d) {
               return "rotate(" + d.rotation + "," + d.x + "," + d.y + ")";
             })
             .attr("fill", arrowColor)
         });
-      }
+      } else if (this.config.arrows.type === "moving arrows") {
+        if (displayArrows !== null) {
+          //clear animations
+          animationFrameIds.forEach(id => cancelAnimationFrame(id));
+          animationFrameIds = [];
 
+          //computes everything again
+          let max = 0
+          let min = Number.POSITIVE_INFINITY
+          const links = this.graph.links;
+          if (links[0].speed)
+            links.forEach(d => {
+              if (d.speed > max) max = d.speed
+              if (d.speed < min) min = d.speed
+            })
+          else
+            links.forEach(d => {
+              if (d.value > max) max = d.value
+              if (d.value < min) min = d.value
+            })
+          const speed = d3.scaleLinear()
+            .domain([min, max])
+            .range([0.07, 0.1]);
+
+
+          gapLength = 15;
+          totalDashArrayLength = arrowLength + gapLength;
+
+          arrows.each(function (arrow) {
+            let thisPath = d3.select(this).node();
+            let parentG = d3.select(this.parentNode);
+
+            let pathLength = thisPath.getTotalLength();
+            let numberOfArrows = Math.ceil(pathLength / totalDashArrayLength);
+
+            // remove the last arrow head if it will overlap the target node
+            if (
+              (numberOfArrows - 1) * totalDashArrayLength +
+              (arrowLength + (headSize + 1)) >
+              pathLength
+            ) {
+              numberOfArrows = numberOfArrows - 1;
+            }
+
+            let arrowHeadData = d3.range(numberOfArrows).map(function (d, i) {
+              let length = i * totalDashArrayLength + arrowLength;
+
+              let point = thisPath.getPointAtLength(length);
+              let previousPoint = thisPath.getPointAtLength(length - 2);
+
+              let rotation = 0;
+
+              if (point.y == previousPoint.y) {
+                rotation = point.x < previousPoint.x ? 180 : 0;
+              } else if (point.x == previousPoint.x) {
+                rotation = point.y < previousPoint.y ? -90 : 90;
+              } else {
+                let adj = Math.abs(point.x - previousPoint.x);
+                let opp = Math.abs(point.y - previousPoint.y);
+                let angle = Math.atan(opp / adj) * (180 / Math.PI);
+                if (point.x < previousPoint.x) {
+                  angle = angle + (90 - angle) * 2;
+                }
+                if (point.y < previousPoint.y) {
+                  rotation = -angle;
+                } else {
+                  rotation = angle;
+                }
+              }
+
+              return { index: i, x: point.x, y: point.y, rotation: rotation, arrow: arrow };
+            });
+
+            parentG.selectAll(".arrow-heads").remove();
+            const arrows = parentG
+              .selectAll(".arrow-heads")
+              .data(arrowHeadData)
+              .enter()
+              .append("path")
+              .attr("d", function (d) {
+                const line = d3.line()
+                  .x(function (d) {
+                    return d.x;
+                  })
+                  .y(function (d) {
+                    return d.y;
+                  });
+                const heightOfArrow = d.arrow.width
+                const pointsRight = [{
+                  x: - 5,
+                  y: 0 - heightOfArrow / 4
+                },
+                {
+                  x: 0,
+                  y: 0 - heightOfArrow / 4
+                },
+                {
+                  x: 5,
+                  y: 0
+                }, {
+                  x: 0,
+                  y: 0 + heightOfArrow / 4
+                }, {
+                  x: -5,
+                  y: 0 + heightOfArrow / 4
+                }, {
+                  x: 0,
+                  y: 0
+                }]
+
+                return line(pointsRight)
+
+              })
+              .attr("class", "arrow-heads")
+              .style("fill", "#ffffff");
+
+
+            repeat(arrows, thisPath, arrowHeadData, speed);
+          })
+          clearInterval(animateDash);
+        }
+      }
     }
 
     //move links
     d3.selectAll(".sankey-link").attr("d", link => {
       return link.path;
     });
+
+    if (this.config.links.percentage !== "none") {
+      let shiftBegin = this.config.nodes.type === "arrow" ? 10 : 2;
+      d3.selectAll(".percentages")
+        .attr("x", d => {
+          let shiftEnd = this.config.nodes.type === "arrow" ? 24 : 20;
+          if (this.config.links.percentage === "source")
+            return d.x0 ? d.x0 + shiftBegin : d.source.x1 + shiftBegin
+          else
+            return d.x1 ? d.x1 - shiftEnd : d.target.x0 - shiftEnd
+        })
+        .attr("y", d => this.config.links.percentage === "source" ? d.y0 : d.y1)
+
+      if (this.config.links.percentage === "both") {
+        d3.selectAll(".percentagesBoth")
+          .attr("x", d => {
+            return d.x0 ? d.x0 + shiftBegin : d.source.x1 + shiftBegin
+          })
+          .attr("y", d => d.y0)
+
+      }
+    }
+
+    if (this.config.links.displayValues === "true") {
+      d3.selectAll(".values")
+        .each(function (d) {
+          let minY = Number.POSITIVE_INFINITY;
+          let maxY = Number.NEGATIVE_INFINITY;
+          let minX = Number.POSITIVE_INFINITY;
+          let maxX = Number.NEGATIVE_INFINITY;
+          // This condition checks if the link is going backward
+          if (d.target.x0 < d.source.x0) {
+            let path = d.path;
+            path = path.replace(/(\s+|\r?\n|\r)/g, ',');
+            const commandRegex = /([MLCA])((?:-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?,?)+)/g;
+            let match;
+            const pathPoints = [];
+            while ((match = commandRegex.exec(path)) !== null) {
+              const cmd = match[1];
+              const paramsString = match[2];
+              const numbers = paramsString.split(/[\s,]+/).filter(Boolean).map(Number);
+              // Process parameters based on command type
+              switch (cmd) {
+                case 'M':
+                case 'L':
+                  // Move and Line commands expect 2 parameters
+                  pathPoints.push({ cmd, x: numbers[0], y: numbers[1] });
+                  break;
+                case 'C':
+                  // Cubic Bezier commands expect 6 parameters
+                  for (let i = 0; i < numbers.length; i += 6) {
+                    pathPoints.push({ cmd, x1: numbers[i], y1: numbers[i + 1], x2: numbers[i + 2], y2: numbers[i + 3], x: numbers[i + 4], y: numbers[i + 5] });
+                  }
+                  break;
+                case 'A':
+                  // Arc commands expect 7 parameters
+                  for (let i = 0; i < numbers.length; i += 7) {
+                    pathPoints.push({ cmd, rx: numbers[i], ry: numbers[i + 1], xAxisRotation: numbers[i + 2], largeArcFlag: numbers[i + 3], sweepFlag: numbers[i + 4], x: numbers[i + 5], y: numbers[i + 6] });
+                  }
+                  break;
+              }
+            }
+            pathPoints.forEach(point => {
+              minX = Math.min(minX, point.x);
+              maxX = Math.max(maxX, point.x);
+              minY = Math.min(minY, point.y);
+              maxY = Math.max(maxY, point.y);
+            });
+            const midX = (d.source.x0 + d.target.x0) / 2;
+            const midY = (minY + maxY) / 2;
+            d3.select(this)
+              .attr("transform", d.circular ? d.circularLinkType === "bottom" ? `rotate(180, ${midX}, ${maxY}) translate(0,-4)` : `rotate(180, ${midX}, ${minY}) translate(0,-4)` : `rotate(180, ${(minX + maxX) / 2}, ${midY})  translate(0,-6)`)
+              .style("text-anchor", "start"); // Adjust text anchor for rotated text
+
+            d3.select(this).select("textPath").style("text-anchor", null);
+
+          } else {
+            d3.select(this)
+              .attr("transform", "translate(0,5)").style("text-anchor", null)
+
+            d3.select(this).select("textPath").style("text-anchor", "middle"); // Adjust text anchor for rotated text
+          }
+        });
+    }
+
 
     return graph;
   }
@@ -1345,16 +1592,23 @@ class SankeyChart {
         });
 
       const lengthOfArrowHead = 10;
-
+      let areNodesBehind = true;
       node
         .append("path")
-        //.attr("class", className)
+        .attr("class", "arrowShape")
         .attr("id", d => {
           //if (color === "color") //set ids on the colored arrows
           return "node-" + d.name
         })
         .attr("d", d => {
+          areNodesBehind = true;
+          d.sourceLinks.forEach(link => {
+            if (link.target.x0 < d.x0) {
+              areNodesBehind = false;
+            }
+          });
           const heightOfArrow = d.y1 - d.y0;
+          const ref = this.config.nodes.width + 10;
           const pointsRight = [{
             x: -lengthOfArrowHead + 2,
             y: 0
@@ -1367,20 +1621,35 @@ class SankeyChart {
             x: -lengthOfArrowHead + 2,
             y: heightOfArrow
           }, {
-            x: 25 - lengthOfArrowHead,
+            x: ref - lengthOfArrowHead,
             y: heightOfArrow
           }, {
-            x: 25,
+            x: ref,
             y: heightOfArrow / 2
           }, {
-            x: 25 - lengthOfArrowHead,
+            x: ref - lengthOfArrowHead,
             y: 0
-          }]
+          }];
           return line(pointsRight)
         })
         .style("fill", this.config.nodes.fill)
         .attr("transform", d => {
-          return "translate(" + d.x0 + "," + d.y0 + ")";
+          let areNodesBehind = true;
+          if (d.sourceLinks.length === 0)
+            areNodesBehind = false;
+
+          d.sourceLinks.forEach(link => {
+            if (link.target.x0 > d.x0)
+              areNodesBehind = false;
+
+            if (link.circular)
+              areNodesBehind = false;
+          });
+
+          const height = d.y1 - d.y0;
+
+          let transform = + areNodesBehind ? "translate(" + d.x0 + "," + d.y0 + ") rotate(180," + this.config.nodes.width / 2 + "," + height / 2 + ")" : "translate(" + d.x0 + "," + d.y0 + ")"
+          return transform;
         })
     }
 
@@ -1411,16 +1680,19 @@ class SankeyChart {
     });
 
 
-    const link = linkG.data(this.graph.links).enter().append("g");
-
+    const link = linkG.data(this.graph.links).enter().append("g").attr("id", d => d.index);
+    let maxWidth = Number.NEGATIVE_INFINITY;
+    let minWidth = Number.POSITIVE_INFINITY;
     let path = link
       .filter((d) => d.path)
       .append("path")
       .attr("class", "sankey-link")
       .attr("d", (d) => d.path)
       .attr("id", d => {
+        d.width > maxWidth ? maxWidth = d.width : null;
+        d.width < minWidth ? minWidth = d.width : null;
         return "link-" + d.index
-      });
+      })
 
     //create gradient for degraded color
     if (this.config.links.degradedColor) {
@@ -1449,6 +1721,7 @@ class SankeyChart {
     //color the links 
     path
       .style("stroke", d => {
+
         if (CSS.supports('color', d.color))
           d.defColor = d.color
         else {
@@ -1471,6 +1744,16 @@ class SankeyChart {
 
     link.append("title").text(d => {
       let string = `${d.source.name} → ${d.target.name} \nValue: ${numberFormat.format(d.value)}`;
+      if (this.config.links.percentage !== "none") {
+        if (this.config.links.percentage === "source" || this.config.links.percentage === "both") {
+          let percentage = d.value / d.source.value * 100;
+          string += `\n% of source: ${percentage.toFixed(0)}%`;
+        }
+        if (this.config.links.percentage === "target" || this.config.links.percentage === "both") {
+          let percentage = d.value / d.target.value * 100;
+          string += `\n% of target: ${percentage.toFixed(0)}%`;
+        }
+      }
       if (d.speed)
         string += `\nSpeed: ${numberFormat.format(d.speed)} `;
       return string;
@@ -1500,7 +1783,7 @@ class SankeyChart {
                 l2 = l2.source.targetLinks[0];
               }
               const source = l2.source.name;
-              graph.links.forEach(l => {
+              this.graph.links.forEach(l => {
                 if (l.source.name === source && l.target.name === target) {
                   colors.push(l.defColor);
                 }
@@ -1526,7 +1809,7 @@ class SankeyChart {
                 l2 = l2.target.sourceLinks[0];
               }
               const target = l2.target.name;
-              graph.links.forEach(l => {
+              this.graph.links.forEach(l => {
                 if (l.source.name === source && l.target.name === target) {
                   colors.push(l.defColor);
                 }
@@ -1580,19 +1863,18 @@ class SankeyChart {
 
       let totalDashArrayLength = arrowLength + gapLength;
 
-      const arrowsG = linkG
-        .data(this.graph.links)
-        .enter()
+      const arrowsG = link
         .append("g")
         .attr("class", "g-arrow");
 
       let arrows = arrowsG
         .append("path")
         .attr("class", "arrow")
+        .attr("id", d => "arrow" + d.index)
         .attr("d", (d) => d.path)
-        .style("stroke-width", 1)
+        .style("stroke-width", this.config.arrows.type === "arrows" || this.config.arrows.type === "animated dash" ? 1 : 0)
         .style("stroke", arrowColor)
-        .style("stroke-dasharray", arrowLength + "," + gapLength);
+        .style("stroke-dasharray", this.config.arrows.type === "arrows" || this.config.arrows.type === "animated dash" ? arrowLength + "," + gapLength : null);
 
       if (this.config.arrows.type === "arrows") {
         arrows.each(function (arrow) {
@@ -1636,7 +1918,7 @@ class SankeyChart {
               }
             }
 
-            return { x: point.x, y: point.y, rotation: rotation };
+            return { x: point.x, y: point.y, rotation: rotation, arrow: arrow };
           });
 
           parentG
@@ -1662,7 +1944,7 @@ class SankeyChart {
                 (d.y + headSize / 2)
               );
             })
-            .attr("class", "arrow-head")
+            .attr("class", "arrow-heads")
             .attr("transform", function (d) {
               return "rotate(" + d.rotation + "," + d.x + "," + d.y + ")";
             })
@@ -1670,6 +1952,118 @@ class SankeyChart {
         });
 
         clearInterval(animateDash);
+      } else if (this.config.arrows.type === "moving arrows") {
+        let max = 0
+        let min = Number.POSITIVE_INFINITY
+        const links = this.graph.links;
+        if (links[0].speed)
+          links.forEach(d => {
+            if (d.speed > max) max = d.speed
+            if (d.speed < min) min = d.speed
+          })
+        else
+          links.forEach(d => {
+            if (d.value > max) max = d.value
+            if (d.value < min) min = d.value
+          })
+        const speed = d3.scaleLinear()
+          .domain([min, max])
+          .range([0.07, 0.1]);
+
+        arrows.each(function (arrow) {
+          let thisPath = d3.select(this).node();
+          let parentG = d3.select(this.parentNode);
+          let pathLength = thisPath.getTotalLength();
+
+          gapLength = 15;
+          totalDashArrayLength = gapLength + arrow.width;
+          let numberOfArrows = Math.ceil(pathLength / totalDashArrayLength);
+
+          // remove the last arrow head if it will overlap the target node
+          if (
+            (numberOfArrows - 1) * totalDashArrayLength +
+            (arrowLength + (headSize + 1)) >
+            pathLength
+          ) {
+            numberOfArrows = numberOfArrows - 1;
+          }
+
+          let arrowHeadData = d3.range(numberOfArrows).map(function (d, i) {
+            let length = i * totalDashArrayLength + arrowLength;
+
+            let point = thisPath.getPointAtLength(length);
+            let previousPoint = thisPath.getPointAtLength(length - 2);
+
+            let rotation = 0;
+
+            if (point.y == previousPoint.y) {
+              rotation = point.x < previousPoint.x ? 180 : 0;
+            } else if (point.x == previousPoint.x) {
+              rotation = point.y < previousPoint.y ? -90 : 90;
+            } else {
+              let adj = Math.abs(point.x - previousPoint.x);
+              let opp = Math.abs(point.y - previousPoint.y);
+              let angle = Math.atan(opp / adj) * (180 / Math.PI);
+              if (point.x < previousPoint.x) {
+                angle = angle + (90 - angle) * 2;
+              }
+              if (point.y < previousPoint.y) {
+                rotation = -angle;
+              } else {
+                rotation = angle;
+              }
+            }
+
+            return { index: i, x: point.x, y: point.y, rotation: rotation, arrow: arrow };
+          });
+
+          const arrows = parentG
+            .selectAll(".arrow-heads")
+            .data(arrowHeadData)
+            .enter()
+            .append("path")
+            .attr("d", function (d) {
+              const line = d3.line()
+                .x(function (d) {
+                  return d.x;
+                })
+                .y(function (d) {
+                  return d.y;
+                });
+              const heightOfArrow = d.arrow.width
+              const pointsRight = [{
+                x: - 5,
+                y: 0 - heightOfArrow / 4
+              },
+              {
+                x: 0,
+                y: 0 - heightOfArrow / 4
+              },
+              {
+                x: 5,
+                y: 0
+              }, {
+                x: 0,
+                y: 0 + heightOfArrow / 4
+              }, {
+                x: -5,
+                y: 0 + heightOfArrow / 4
+              }, {
+                x: 0,
+                y: 0
+              }]
+
+              return line(pointsRight)
+
+            })
+            .attr("class", "arrow-heads")
+            .style("fill", "#ffffff");
+
+          repeat(arrows, thisPath, arrowHeadData, speed);
+        })
+
+        clearInterval(animateDash);
+
       } else {
         //create animated dash with different speed
         let max = 0
@@ -1698,6 +2092,178 @@ class SankeyChart {
         }, duration);
 
       }
+    }
+
+
+    //add percentage 
+    if (this.config.links.percentage !== "none") {
+      let shiftBegin = this.config.nodes.type === "arrow" ? 10 : 2;
+      link.append("text")
+        .attr("class", "percentages")
+        .attr("x", d => {
+          let shiftEnd = this.config.nodes.type === "arrow" ? 24 : 20;
+          if (this.config.links.percentage === "source")
+            return d.x0 ? d.x0 + shiftBegin : d.source.x1 + shiftBegin
+          else
+            return d.x1 ? d.x1 - shiftEnd : d.target.x0 - shiftEnd
+        })
+        .attr("y", d => this.config.links.percentage === "source" ? d.y0 : d.y1)
+        .attr("fill", this.config.labelColor)
+        .attr("font-size", "10px")
+        .attr("dy", "0.35em")
+        //.style("stroke", this.config.labelColor === "#fff" ? "black" : "white")
+        //.style("stroke-width", "0.02em")
+        //.style("font-weight", "500")
+        .text(d => {
+          if (this.config.links.percentage === "source") {
+            let percentage = d.value / d.source.value * 100;
+            if (percentage < 100 && percentage > 0 && d.width > 5)
+              return `${percentage.toFixed(0)}%`;
+          } else {
+            let percentage = d.value / d.target.value * 100;
+            if (percentage < 100 && percentage > 0 && d.width > 5)
+              return `${percentage.toFixed(0)}%`;
+          }
+        })
+        .raise();
+
+      if (this.config.links.percentage === "both") {
+        link.append("text")
+          .attr("class", "percentagesBoth")
+          .attr("x", d => {
+            return d.x0 ? d.x0 + shiftBegin : d.source.x1 + shiftBegin
+          })
+          .attr("y", d => d.y0)
+          .attr("fill", this.config.labelColor)
+          .attr("font-size", "10px")
+          .attr("dy", "0.35em")
+          //.style("stroke", this.config.labelColor === "#fff" ? "black" : "white")
+          //.style("stroke-width", "0.02em")
+          //.style("font-weight", "500")
+          .text(d => {
+            let percentage = d.value / d.source.value * 100;
+            if (percentage < 100 && percentage > 0 && d.width > 5)
+              return `${percentage.toFixed(0)}%`;
+          })
+
+      }
+    }
+
+    //add value 
+    if (this.config.links.displayValues === "true") {
+      const adaptLabel = this.config.links.adaptiveLabel;
+      const sizeLabel = d3.scaleLinear()
+        .domain([minWidth, maxWidth])
+        .range([1, 25]);
+      const translate = d3.scaleLinear()
+        .domain([minWidth, maxWidth])
+        .range([2, 8]);
+      link.append("text")
+        .each(function (d) {
+          // This condition checks if the link is going backward
+          let minY = Number.POSITIVE_INFINITY;
+          let maxY = Number.NEGATIVE_INFINITY;
+          let minX = Number.POSITIVE_INFINITY;
+          let maxX = Number.NEGATIVE_INFINITY;
+          if (d.target.x0 < d.source.x0) {
+            let path = d.path;
+            path = path.replace(/(\s+|\r?\n|\r)/g, ',');
+            const commandRegex = /([MLCA])((?:-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?,?)+)/g;
+            let match;
+            const pathPoints = [];
+            while ((match = commandRegex.exec(path)) !== null) {
+              const cmd = match[1];
+              const paramsString = match[2];
+              const numbers = paramsString.split(/[\s,]+/).filter(Boolean).map(Number);
+              // Process parameters based on command type
+              switch (cmd) {
+                case 'M':
+                case 'L':
+                  // Move and Line commands expect 2 parameters
+                  pathPoints.push({ cmd, x: numbers[0], y: numbers[1] });
+                  break;
+                case 'C':
+                  // Cubic Bezier commands expect 6 parameters
+                  for (let i = 0; i < numbers.length; i += 6) {
+                    pathPoints.push({ cmd, x1: numbers[i], y1: numbers[i + 1], x2: numbers[i + 2], y2: numbers[i + 3], x: numbers[i + 4], y: numbers[i + 5] });
+                  }
+                  break;
+                case 'A':
+                  // Arc commands expect 7 parameters
+                  for (let i = 0; i < numbers.length; i += 7) {
+                    pathPoints.push({ cmd, rx: numbers[i], ry: numbers[i + 1], xAxisRotation: numbers[i + 2], largeArcFlag: numbers[i + 3], sweepFlag: numbers[i + 4], x: numbers[i + 5], y: numbers[i + 6] });
+                  }
+                  break;
+              }
+            }
+            pathPoints.forEach(point => {
+              minX = Math.min(minX, point.x);
+              maxX = Math.max(maxX, point.x);
+              minY = Math.min(minY, point.y);
+              maxY = Math.max(maxY, point.y);
+            });
+            const midX = (d.source.x0 + d.target.x0) / 2;
+            const midY = (minY + maxY) / 2;
+
+
+            d3.select(this)
+              .attr("transform", () => {
+                if (d.circular)
+                  return d.circularLinkType === "bottom" ? `rotate(180, ${midX}, ${maxY}) translate(0,-${adaptLabel === "true" ? translate(d.width) : 4})` : `rotate(180, ${midX}, ${minY}) translate(0,-${adaptLabel === "true" ? translate(d.width) : 4})`
+                else
+                  return `rotate(180, ${(minX + maxX) / 2}, ${midY})  translate(0,-${adaptLabel === "true" ? translate(d.width) + 2 : 6})`
+              }
+              )
+
+            d3.select(this).style("text-anchor", "start"); // Adjust text anchor for rotated text
+            d3.select(this).select("textPath").style("text-anchor", null);
+          } else {
+            d3.select(this)
+              .attr("transform", d => adaptLabel === "true" ? `translate(0,${translate(d.width)})` : "translate(0,5)").style("text-anchor", null)
+
+            d3.select(this).select("textPath").style("text-anchor", "middle"); // Adjust text anchor for rotated text
+          }
+        })
+        .attr("class", "values")
+        .append("textPath")
+        .attr("href", d => "#link-" + d.index) // Reference the path by its id
+        .style("text-anchor", "middle") // Center the text
+        .attr("startOffset", "50%") // Position the text in the middle of the path
+        .attr("fill", this.config.labelColor)
+        .attr("font-size", d => this.config.links.adaptiveLabel === "true" ? sizeLabel(d.width) > 5 ? sizeLabel(d.width) + "px" : "0px" : "10px")
+        .attr("dy", "0.35em")
+        //.style("text-shadow", this.config.labelColor === "#fff" ? "0.09em 0 black, 0 0.09em black, -0.09em 0 black, 0 -0.09em black" : "0.09em 0 white, 0 0.09em white, -0.09em 0 white, 0 -0.09em white")
+        .style("stroke", this.config.labelColor === "#fff" ? "black" : "white")
+        .style("stroke-width", "0.02em")
+        .style("font-weight", "500")
+        .text(d => {
+          let value = d.value;
+          value = d3.format(".3~s")(d.value);
+          return `${value}`;
+        })
+
+      // Assuming your text elements are appended to `link` selections
+      /* link.each(function (d, i) {
+         // Get the current text element
+         const textElement = d3.select(this).select(".values");
+ 
+         // Calculate the bounding box of the text element
+         const bbox = textElement.node().getBBox();
+ 
+         // Adjustments for padding around the text
+         const padding = 2;
+ 
+         // Insert a rect element before the text element
+         d3.select(this)
+           .insert("rect", "text")
+           .attr("x", bbox.x - padding)
+           .attr("y", bbox.y - padding)
+           .attr("width", bbox.width + 2 * padding)
+           .attr("height", bbox.height + 2 * padding)
+           .attr("fill", "white") // Set the background color
+           .attr("class", "text-background"); // Add a class for additional styling
+       });*/
+
     }
   }
 } // End of draw()
